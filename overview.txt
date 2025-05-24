@@ -1,0 +1,29 @@
+# 🤖 AI Startup Bot via Slack + Groq
+
+This is a solo-founder AI agent system that helps you generate and iterate on startup ideas directly in Slack. You interact with a **Researcher Agent** via @mentions, and the bot replies with structured, monetizable startup ideas.
+
+---
+
+## 🧠 Architecture Overview
+
+| Component      | Tool / Service                | Purpose                                                                 |
+|----------------|-------------------------------|-------------------------------------------------------------------------|
+| Slack App      | [Slack API](https://api.slack.com/)       | UI for interacting with your AI agents                                 |
+| LLM Backend    | [Groq via OpenRouter](https://openrouter.ai) | Free, fast language model API (Mixtral) to generate responses          |
+| Python Bot     | [Slack Bolt + Flask]          | Handles Slack events and passes them to the LLM                        |
+| Dev Hosting    | [ngrok](https://ngrok.com)     | Exposes your local Flask server to Slack via a public HTTPS URL       |
+
+---
+
+## 🛠️ Tools Used and Why
+
+| Tool         | Why We Used It                                                                 |
+|--------------|---------------------------------------------------------------------------------|
+| **Slack Bolt**   | Easiest way to build interactive bots with Slack                            |
+| **Groq + OpenRouter** | Free LLM access (Mixtral), OpenAI-compatible API, great for idea generation    |
+| **Flask**      | Lightweight Python server to handle Slack events                              |
+| **ngrok**      | Quick local development with HTTPS tunneling to receive Slack webhooks        |
+| **dotenv**     | Manages secrets like API keys safely                                           |
+| **requests**   | Used to call OpenRouter’s API from Python                                     |
+
+---

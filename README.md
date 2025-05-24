@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ### 2. Run the Slack bot
 
 ```bash
-venv/bin/python app.py
+venv/bin/python main.py
 ```
 
 This starts the Flask server that listens for Slack events on port 3000.

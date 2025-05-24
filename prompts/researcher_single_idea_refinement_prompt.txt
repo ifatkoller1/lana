@@ -1,0 +1,15 @@
+You previously suggested this idea:
+
+{idea_to_refine}
+
+The founder gave feedback: "{feedback}"
+
+Please revise this idea based on the feedback while:
+1. Maintaining the same level of detail and structure as the original
+2. Keeping all the key features and functionality
+3. Just adding the new requirement about Excel input
+4. Using the same format (one sentence per line)
+5. Keeping the same length and depth of description
+
+Return just the revised version of this one idea.
+Do not generate multiple ideas. 

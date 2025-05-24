@@ -17,6 +17,7 @@ def load_prompt(file_name):
 
 RESEARCHER_PROMPT_TEMPLATE = load_prompt("prompts/researcher_prompt.txt")
 RESEARCHER_PREPROCESSOR_PROMPT_TEMPLATE = load_prompt("prompts/researcher_preprocessor_prompt.txt")
+RESEARCHER_SINGLE_IDEA_REFINEMENT_PROMPT_TEMPLATE = load_prompt("prompts/researcher_single_idea_refinement_prompt.txt")
 
 # -------------------- Preprocessing --------------------
 def preprocess_researcher_prompt(user_input):
@@ -68,13 +69,122 @@ def researcher_events():
         return jsonify({"challenge": request.json["challenge"]})
     return researcher_handler.handle(request)
 
+@researcher_app.event("message")
+def handle_message_events(body, logger):
+    logger.info(body)
+    # We don't need to do anything here, but we need to handle the event
+    return
+
 @researcher_app.event("app_mention")
 def handle_researcher(event, say):
+    print("DEBUG - Received event:", event)
+    
     user_text = event["text"]
     thread_ts = event.get("thread_ts", event["ts"])
 
+    # Handle refinement of a specific idea
+    if "refine idea" in user_text.lower():
+        try:
+            print("DEBUG - Processing refine idea command")
+            # Remove the bot mention from the text
+            user_text = user_text.split(">", 1)[1].strip()
+            
+            # Split on the first colon
+            raw = user_text.split(":", 1)
+            if len(raw) < 2:
+                raise ValueError("Invalid format")
+                
+            # Extract the idea number - look for the number after "refine idea"
+            idea_part = raw[0].strip()
+            idea_number = int(idea_part.split()[-1])  # Get the last word which should be the number
+            feedback = raw[1].strip()
+
+            previous = getattr(flask_app, "last_researcher_output", None)
+            if not previous:
+                say("⚠️ Sorry, I don't have anything to refine yet.")
+                return
+
+            print("DEBUG - Previous output:", previous)
+            print("DEBUG - Idea number:", idea_number)
+            print("DEBUG - Feedback:", feedback)
+
+            # Extract ideas using the same function from the test
+            ideas = []
+            for line in previous.strip().split("\n"):
+                if line.strip():
+                    parts = line.split(".", 1)
+                    if len(parts) == 2 and parts[0].strip().isdigit():
+                        ideas.append((int(parts[0].strip()), parts[1].strip()))
+
+            print("DEBUG - Extracted ideas:", ideas)
+
+            # Find the idea to refine
+            idea_to_refine = None
+            for num, idea in ideas:
+                if num == idea_number:
+                    idea_to_refine = idea
+                    break
+
+            if not idea_to_refine:
+                say("⚠️ Invalid idea number.")
+                return
+
+            print("DEBUG - Idea to refine:", idea_to_refine)
+
+            # Use the prompt template
+            prompt = RESEARCHER_SINGLE_IDEA_REFINEMENT_PROMPT_TEMPLATE.format(
+                idea_to_refine=idea_to_refine,
+                feedback=feedback
+            )
+
+            # Call OpenRouter with lower temperature
+            headers = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            body = {
+                "model": "mistralai/mixtral-8x7b-instruct",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.1  # Lower temperature for more focused output
+            }
+            
+            print("DEBUG - Request body:", body)
+            
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=body)
+            result = response.json()
+            
+            print("DEBUG - Raw response:", result)
+            
+            refined = result["choices"][0]["message"]["content"].strip()
+            
+            print("DEBUG - Refined idea:", refined)
+
+            # Update the idea in the list
+            updated_ideas = []
+            for num, idea in ideas:
+                if num == idea_number:
+                    updated_ideas.append((num, refined))
+                else:
+                    updated_ideas.append((num, idea))
+
+            # Format the full response
+            full_response = "\n".join([f"{num}. {idea}" for num, idea in updated_ideas])
+            
+            say(f"Here is the updated idea {idea_number}:", thread_ts=thread_ts)
+            say(refined, thread_ts=thread_ts)
+            flask_app.last_researcher_output = full_response
+            return
+
+        except Exception as e:
+            print("DEBUG - Error:", str(e))
+            say("⚠️ Couldn't parse the refine command. Please use 'refine idea 1: <your feedback>'.")
+            return
+
     # Handle refinement of entire output
-    if user_text.lower().startswith("refine:") and not user_text.lower().startswith("refine idea"):
+    if user_text.lower().startswith("refine:"):
         feedback = user_text.replace("refine:", "").strip()
         previous = getattr(flask_app, "last_researcher_output", None)
         if not previous:
@@ -97,48 +207,6 @@ Please revise your original suggestions based on the feedback. Keep the same for
         flask_app.last_researcher_output = revised
         return
 
-    # Handle refinement of a specific idea
-    if user_text.lower().startswith("refine idea"):
-        try:
-            raw = user_text.strip().split(":", 1)
-            if len(raw) < 2:
-                raise ValueError("Invalid format")
-            idea_number = int(raw[0].strip().split()[-1]) - 1
-            feedback = raw[1].strip()
-
-            previous = getattr(flask_app, "last_researcher_output", None)
-            if not previous:
-                say("⚠️ Sorry, I don't have anything to refine yet.")
-                return
-
-            ideas = [i.strip().split(".", 1)[-1].strip() for i in previous.strip().split("\n\n") if i.strip()]
-            if idea_number < 0 or idea_number >= len(ideas):
-                say("⚠️ Invalid idea number.")
-                return
-
-            selected_idea = ideas[idea_number]
-            prompt = f"""
-You previously suggested this idea:
-
-{selected_idea}
-
-The founder gave feedback: "{feedback}"
-
-Please revise ONLY this idea based on the feedback.
-Use short, simple sentences.
-Return just the revised version of this one idea.
-Do not generate multiple ideas or suggestions.
-"""
-            refined = call_openrouter(prompt).strip()
-            ideas[idea_number] = refined
-            full_response = "\n\n".join([f"{i+1}. {idea}" for i, idea in enumerate(ideas)])
-            say(f"Here is the updated idea {idea_number+1}:", thread_ts=thread_ts)
-            say(refined, thread_ts=thread_ts)
-            flask_app.last_researcher_output = full_response
-        except Exception as e:
-            say("⚠️ Couldn't parse the refine command. Please use 'refine idea 1: <your feedback>'.")
-        return
-
     # Handle proceed
     if user_text.lower().startswith("proceed:"):
         idea_number = user_text.replace("proceed:", "").strip()
@@ -154,8 +222,10 @@ Do not generate multiple ideas or suggestions.
     summary = preprocess_researcher_prompt(user_text)
     final_prompt = RESEARCHER_PROMPT_TEMPLATE.replace("{summary}", summary)
     reply = call_openrouter(final_prompt)
-    say(reply, thread_ts=thread_ts)
+    print("DEBUG - Setting last_researcher_output:", reply)
     flask_app.last_researcher_output = reply
+    say(reply, thread_ts=thread_ts)
+    return
 
 # -------------------- PM Bot --------------------
 pm_app = App(

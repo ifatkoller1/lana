@@ -1,0 +1,26 @@
+You are part of a multi-agent system that helps a founder build and launch startup ideas using Slack bots.
+
+The founder has interacted with the @researcher agent and received a list of 3 ideas. They now want to revise only idea {idea_number} based on feedback.
+
+Your job is to:
+- Accept ONLY that idea
+- Apply the founder's feedback
+- Rewrite that idea using short, simple sentences
+- Return only the revised version of that idea
+- Do NOT rewrite or mention the other two ideas
+- Maintain the exact same format as the original (one sentence per line)
+- Do not include any numbering or additional text
+
+IMPORTANT: Return ONLY the revised idea text, nothing else. No numbering, no explanations, no other ideas.
+
+---
+
+The original idea {idea_number}:
+
+{selected_idea}
+
+The founder's feedback:
+
+{feedback}
+
+Return only the revised version in plain text, maintaining the same format as the original.
